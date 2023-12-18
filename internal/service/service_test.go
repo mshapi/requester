@@ -4,15 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 	"requester/internal/model"
 )
+
+func TestNew(t *testing.T) {
+	client := NewMockHTTPClient(t)
+
+	r := New(client)
+
+	require.Equal(t, reflect.ValueOf(client).Pointer(), reflect.ValueOf(r.client).Pointer())
+}
 
 func TestRequester_Run(t *testing.T) {
 	ctx := context.Background()
@@ -20,6 +30,7 @@ func TestRequester_Run(t *testing.T) {
 	tests := []struct {
 		name    string
 		client  func(t *testing.T, req *model.RequestData) HTTPClient
+		ctx     context.Context
 		req     *model.RequestData
 		wantErr bool
 	}{
@@ -149,12 +160,33 @@ func TestRequester_Run(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "context canceled",
+			client: func(t *testing.T, req *model.RequestData) HTTPClient {
+				return nil
+			},
+			ctx: (func() context.Context {
+				tmp, cancel := context.WithCancel(ctx)
+				cancel()
+				return tmp
+			})(),
+			req: &model.RequestData{
+				URL:       "http://asd.e",
+				Amount:    5,
+				PerSecond: 2,
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Requester{
 				client: tt.client(t, tt.req),
+			}
+			ctx := ctx
+			if tt.ctx != nil {
+				ctx = tt.ctx
 			}
 			if err := r.Run(ctx, tt.req); (err != nil) != tt.wantErr {
 				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)

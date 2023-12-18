@@ -29,7 +29,7 @@ func (r *Requester) Run(ctx context.Context, req *model.RequestData) error {
 		return err
 	}
 
-	if req.Amount <= 0 || req.PerSecond == 0 {
+	if req.Amount <= 0 || req.PerSecond <= 0 {
 		return nil
 	}
 
@@ -42,7 +42,10 @@ func (r *Requester) Run(ctx context.Context, req *model.RequestData) error {
 			return err
 		}
 
-		go r.doReq(ctx, req.URL, i, wg)
+		go func(i int) {
+			defer wg.Done()
+			r.doReq(ctx, req.URL, i)
+		}(i)
 	}
 
 	wg.Wait()
@@ -55,9 +58,8 @@ func (r *Requester) makeBody(i int) string {
 	return `{ "iteration": ` + strconv.Itoa(i) + ` }`
 }
 
-func (r *Requester) doReq(ctx context.Context, url string, i int, wg *sync.WaitGroup) {
+func (r *Requester) doReq(ctx context.Context, url string, i int) {
 	r.client.Post(ctx, url, r.makeBody(i))
-	wg.Done()
 }
 
 func validateURL(link string) error {
