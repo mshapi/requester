@@ -6,9 +6,10 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"time"
 
-	"golang.org/x/time/rate"
 	"requester/internal/model"
+	"requester/internal/pkg/limiter"
 )
 
 //go:generate mockery --name=HTTPClient --inpackage --case=snake
@@ -33,12 +34,12 @@ func (r *Requester) Run(ctx context.Context, req *model.RequestData) error {
 		return nil
 	}
 
-	limiter := rate.NewLimiter(rate.Limit(req.PerSecond), req.PerSecond)
+	rateLimiter := limiter.New(int64(req.PerSecond), time.Second)
 	wg := &sync.WaitGroup{}
 	wg.Add(req.Amount)
 
 	for i := 0; i < req.Amount; i++ {
-		if err := limiter.Wait(ctx); err != nil {
+		if err := rateLimiter.Wait(ctx); err != nil {
 			return err
 		}
 
@@ -64,11 +65,16 @@ func (r *Requester) doReq(ctx context.Context, url string, i int) {
 
 func validateURL(link string) error {
 	u, err := url.Parse(link)
+	if err != nil {
+		return err
+	}
+
 	if u.Scheme == "" {
 		return errors.New("empty scheme")
 	}
 	if u.Host == "" {
 		return errors.New("empty host")
 	}
-	return err
+
+	return nil
 }

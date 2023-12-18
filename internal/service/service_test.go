@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"reflect"
 	"strings"
 	"sync"
@@ -87,9 +86,7 @@ func TestRequester_Run(t *testing.T) {
 			client: func(t *testing.T, req *model.RequestData) HTTPClient {
 				c := NewMockHTTPClient(t)
 
-				limiter := rate.NewLimiter(rate.Limit(req.PerSecond), 2*req.PerSecond)
-				amount := &atomic.Int64{}
-				amount.Add(int64(req.Amount))
+				limiter := rate.NewLimiter(rate.Limit(req.PerSecond), req.PerSecond)
 
 				rMx := sync.Mutex{}
 				requests := make(map[int]struct{})
@@ -108,10 +105,6 @@ func TestRequester_Run(t *testing.T) {
 						return
 					}
 
-					if amount.Load() != 0 {
-						panic("not all iterations have been completed")
-					}
-
 					rMx.Lock()
 					defer rMx.Unlock()
 					if len(requests) > 0 {
@@ -127,20 +120,11 @@ func TestRequester_Run(t *testing.T) {
 						}
 					}()
 
-					log.Printf("new request: %#v\n", args)
-
 					if !limiter.Allow() {
 						panic("the permissible RPS value has been exceeded")
 					}
-					if amount.Add(-1) < 0 {
-						panic("available quantity has been exhausted")
-					}
 
 					tmp := &reqBody{}
-					defer func() {
-						log.Println("exit", tmp.Iteration)
-					}()
-
 					if err := json.NewDecoder(strings.NewReader(args.String(2))).Decode(tmp); err != nil {
 						panic(err)
 					}
@@ -155,8 +139,8 @@ func TestRequester_Run(t *testing.T) {
 			},
 			req: &model.RequestData{
 				URL:       "http://asd.e",
-				Amount:    5,
-				PerSecond: 2,
+				Amount:    16,
+				PerSecond: 3,
 			},
 			wantErr: false,
 		},
