@@ -34,6 +34,18 @@ func TestRequester_Run(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "invalid url",
+			client: func(t *testing.T, req *model.RequestData) HTTPClient {
+				return nil
+			},
+			req: &model.RequestData{
+				URL:       "://asd",
+				Amount:    10,
+				PerSecond: 10,
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid url scheme",
 			client: func(t *testing.T, req *model.RequestData) HTTPClient {
 				return nil
@@ -80,6 +92,23 @@ func TestRequester_Run(t *testing.T) {
 				PerSecond: 10,
 			},
 			wantErr: false,
+		},
+		{
+			name: "context canceled",
+			client: func(t *testing.T, req *model.RequestData) HTTPClient {
+				return nil
+			},
+			ctx: (func() context.Context {
+				tmp, cancel := context.WithCancel(ctx)
+				cancel()
+				return tmp
+			})(),
+			req: &model.RequestData{
+				URL:       "http://asd.e",
+				Amount:    5,
+				PerSecond: 2,
+			},
+			wantErr: true,
 		},
 		{
 			name: "check rps",
@@ -143,23 +172,6 @@ func TestRequester_Run(t *testing.T) {
 				PerSecond: 3,
 			},
 			wantErr: false,
-		},
-		{
-			name: "context canceled",
-			client: func(t *testing.T, req *model.RequestData) HTTPClient {
-				return nil
-			},
-			ctx: (func() context.Context {
-				tmp, cancel := context.WithCancel(ctx)
-				cancel()
-				return tmp
-			})(),
-			req: &model.RequestData{
-				URL:       "http://asd.e",
-				Amount:    5,
-				PerSecond: 2,
-			},
-			wantErr: true,
 		},
 	}
 
